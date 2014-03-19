@@ -1,0 +1,656 @@
+(module laby.generate jazz
+
+;;;
+;;;; Laby
+;;;
+
+
+;;;
+;;;; Parameters
+;;;
+
+
+(define RECT-ARENA      0)
+(definition public RECT-LABYRINTH  0)
+(define CANVAS-VOID    #f)
+(define CANVAS-NONVOID #t)
+
+(define air-char             #\space)
+(define wall-char            #\=)
+(define canvas-char          #\*)
+(define canvas-corner-char   #\+)
+(define canvas-vert-char     #\|)
+(define canvas-horiz-char    #\-)
+(define canvas-path-char     #\.)
+
+(definition public AIR              0)
+(definition public WALL             1)
+(definition public CANVAS           2)
+(definition public CANVAS-CORNER    3)
+(definition public CANVAS-VERT      4)
+(definition public CANVAS-HORIZ     5)
+(definition public CANVAS-PATH-CHAR 6)
+
+(define tiles (list->vector `(,air-char
+                               ,wall-char
+                               ,canvas-char
+                               ,canvas-corner-char
+                               ,canvas-vert-char
+                               ,canvas-horiz-char
+                               ,canvas-path-char)))
+
+(define (get-tile t) (vector-ref tiles t))
+
+;;;
+;;;; Canvas
+;;;
+
+(define make-canvas list)
+(define canvas-rows car)
+(define canvas-cols cadr)
+
+(native not-negative?)
+
+(define (in-canvas? canvas row col)
+  (and (not-negative? row)
+       (not-negative? col)
+       (< row (canvas-rows canvas))
+       (< col (canvas-cols canvas))))
+
+;;;
+;;;; Paths and Segment Paths
+;;;
+
+(define (path-cartesian-valid? path)
+  (if (< (path-length path) 2)
+      #t
+      (if (cartesian-neighbors (car path) (cadr path))
+          (path-cartesian-valid? (cdr path))
+          #f)))
+
+(define (path-arena-valid? arena path)
+  (if (null? path)
+      #t
+      (if (in-arena? arena (car path))
+          (path-arena-valid? arena (cdr path))
+          #f)))
+
+(define (segment-path-valid? segments)
+  (if (< (length segments) 2)
+      #t
+      (if (tiles-aligned? (car segments) (cadr segments))
+          (segment-path-valid? (cdr segments))
+          #f)))
+
+(define (path->segments path)
+  
+  (define (path->segments-aux direction tile path acc)
+    (if (null? path)
+        (reverse (cons tile acc))
+        (let ((next-direction (tiles-direction tile (car path))))
+          (if (eq? direction next-direction)
+              (path->segments-aux direction (car path) (cdr path) acc)
+              (path->segments-aux next-direction tile path (cons tile acc))))))
+
+  (if (< (path-length path) 2)
+      path
+      (path->segments-aux (tiles-direction (car path) (cadr path))
+                          (car path)
+                          (cdr path)
+                          (list (car path)))))
+
+(define (segments->path segments)
+  
+  (define (segments->path-aux tile segments path)
+    (if (null? segments)
+        (reverse (cons tile path))
+        (if (tile=? tile (car segments))
+            (segments->path-aux (car segments)
+                                (cdr segments)
+                                path)
+            (segments->path-aux (next-tile-toward tile (car segments))
+                                segments
+                                (cons tile path)))))
+
+  (if (< (length segments) 2)
+      segments
+      (segments->path-aux (car segments)
+                          (cdr segments)
+                          '())))
+
+(define (path-length path)
+  (length path))
+
+(define (segment-path-length path)
+  (length (path->segments path)))
+
+;; Return true if last tile of pathA is same as first of pathB
+(define (path-connected? pathA pathB)
+  (tile=? (last pathA) (car pathB)))
+
+(define (segment-path-connected? segmentsA segmentsB)
+  (tile=? (last segmentsA) (car segmentsB)))
+
+(define (segment-path-union segmentsA segmentsB)
+  (if (null? segmentsB)
+      segmentsA
+      (append segmentsA (cdr segmentsB))))
+
+;; Returns a concatenation of all paths provided
+;; such that
+;;(path-union '()) -> '()
+;; and
+;;(path-union '(1 2 3)) -> '(1 2 3)
+;; and
+;;(path-union '(1 2 3) '(3 4 5) '(5 6 7)) -> '(1 2 3 4 5 6 7)
+;;
+(define (path-union pathA . paths)
+  (if (or (null? paths)
+          (null? (car paths)))
+      pathA
+      (apply path-union (cons (append pathA (cdar paths))
+                              (cdr paths)))))
+
+;; Returns a set of the shortest paths from tile A to B
+;; shortest in terms of number of segments
+;; A+--+                      A+-+
+;;     |     is shorter than     |
+;;     |                         +-+
+;;     +                           |
+;;     B                           +
+;;                                 B
+;; even if the manhattan distance is the same.
+;; Can currently only process 1 and 2-segment paths.
+(define (shortest-paths laby tileA tileB)
+  (let ((arena (labyrinth-arena laby)))
+    
+    (define (get-1-segment-path)
+      (if (tiles-aligned? tileA tileB)
+          (let ((path (segments->path (list tileA tileB))))
+            (if (path-arena-valid? arena path)
+                (list path)
+                '()))
+          '()))
+
+    (define (get-2-segment-paths)
+      (let* ((tile1 (make-tile (tile-row tileA) (tile-col tileB)))
+             (tile2 (make-tile (tile-row tileB) (tile-col tileA)))
+             (path1 (segments->path (list tileA tile1 tileB)))
+             (path2 (segments->path (list tileA tile2 tileB)))
+             (paths (keep (list (if (path-arena-valid? arena path1)
+                                    path1
+                                    '())
+                                (if (path-arena-valid? arena path2)
+                                    path2
+                                    '()))
+                          non-null?)))
+        paths))
+    
+    ;; (define (shortest-paths-aux tileA tileB all-tiles excluded-tiles dist paths)
+    ;;   '())
+    
+    (let ((single-segment (get-1-segment-path)))
+      (if (non-null? single-segment)
+          single-segment
+          (keep (get-2-segment-paths)
+                non-null?)))))
+
+;;(pp (shortest-paths (make-tile 0 0) (make-tile 10 10)))
+
+
+
+
+;;;
+;;;; Cells
+;;;
+
+;(define-structure tile row col)
+
+(class Tile extends Object
+  (slot row accessors generate)
+  (slot col accessors generate)
+  
+  (method override (initialize row col)
+    (set! row~self row)
+    (set! col~self col))
+  
+  
+  (method override (print output readably)
+    (print-unreadable self output
+      (lambda (output)
+        (format output
+                "{a} {a}"
+                row col))))
+  
+  
+  (method override (compare-object target)
+    (if (is-not? target Tile)
+        :incompatible
+      (tile=? self target))))
+
+(definition public (make-tile row col)
+  (new Tile row col))
+
+(definition public (tile-row tile)
+  (get-row~ tile))
+
+(definition public (tile-col tile)
+  (get-col~ tile))
+
+
+(define (north tile)
+  (make-tile (+ (tile-row tile) 1)
+             (tile-col tile)))
+
+(define (east tile)
+  (make-tile (tile-row tile)
+             (+ (tile-col tile) 1)))
+
+(define (south tile)
+  (make-tile (- (tile-row tile) 1)
+             (tile-col tile)))
+
+(define (west tile)
+  (make-tile (tile-row tile)
+             (- (tile-col tile) 1)))
+
+(define (next-tile-toward tile1 tile2)
+  (let ((direction (tiles-direction tile1 tile2)))
+    (cond ((eq? direction 'north) (north tile1))
+          ((eq? direction 'east)  (east tile1))
+          ((eq? direction 'south) (south tile1))
+          ((eq? direction 'west)  (west tile1)))))
+
+(define (tile-neighbors arena tile)
+  (table-ref (arena-neighbors arena) tile))
+
+(define (arena-neighbors? arena tile1 tile2)
+  (member tile2 (tile-neighbors arena tile1)))
+
+(define (cartesian-neighbors tile1 tile2)
+  (= (dist^2 tile1 tile2) 1))
+
+(define (tile=? tile1 tile2)
+  (let ((row1 (tile-row tile1))
+        (col1 (tile-col tile1))
+        (row2 (tile-row tile2))
+        (col2 (tile-col tile2)))
+    (and (= row1 row2)
+         (= col1 col2))))
+
+(define (tile-eq? tile1 tile2)
+  (eq? tile1 tile2))
+
+;; Returns 'horiz or 'vert according to the positions of tile1 and tile2
+(define (tiles-orientation tile1 tile2)
+  (if (member (tiles-direction tile1 tile2)
+              '(north south))
+      'vert
+      'horiz))
+
+;; Returns direction from tile1 to tile2
+;; north, east, south or west
+(define (tiles-direction tileA tileB)
+  (let ((row1 (tile-row tileA))
+        (col1 (tile-col tileA))
+        (row2 (tile-row tileB))
+        (col2 (tile-col tileB)))
+    (if (= row1 row2)
+        (if (< col1 col2)
+            'east
+            'west)
+        (if (< row1 row2)
+            'north
+            'south))))
+
+(define (tiles-vert-aligned? tile1 tile2)
+  (= (tile-col tile1) (tile-col tile2)))
+
+(define (tiles-horiz-aligned? tile1 tile2)
+  (= (tile-row tile1) (tile-row tile2)))
+
+(define (tiles-aligned? tile1 tile2)
+  (or (tiles-vert-aligned? tile1 tile2)
+      (tiles-horiz-aligned? tile1 tile2)))
+
+;;;
+;;;; Arenas
+;;;
+
+;; Rectangular arena
+
+;; Return all the tiles in the arena
+(define (gen-rect-arena-tiles params)
+  (letrec ((rows (get-param params 'rows))
+           (cols (get-param params 'cols))
+           (loop (lambda (row col tiles)
+                   (cond ((= row rows)
+                          tiles)
+                         (else
+                          (if (= col cols)
+                              (loop (+ row 1) 0 tiles)
+                              (loop row (+ col 1) (cons (make-tile row col) tiles))))))))
+    (loop 0 0 '())))
+
+;; Return a table of neighbor tiles for each tile in the arena
+(define (gen-rect-arena-neighbors tiles params)
+  (let ((arena (list RECT-ARENA params '() '())))  
+
+    (define (tile-neighbors tile)
+      (let ((candidates (list (north tile)
+                              (east tile)
+                              (south tile)
+                              (west tile))))
+        (keep candidates
+              (lambda (tile)
+                (if (in-rect-arena? arena tile)
+                    (car (find-pair tile tiles test: tile=?))
+                    #f)))))
+
+    (define (gen-neighbors! tiles neighbors-table)
+      (cond ((null? tiles)
+             neighbors-table)
+            (else
+             (table-set! neighbors-table
+                         (car tiles)
+                         (tile-neighbors (car tiles)))
+             (gen-neighbors! (cdr tiles)
+                            neighbors-table))))
+
+    (cond ((null? tiles)
+           '())
+          (else
+           (let ((neighbors-table (make-table)))
+             (gen-neighbors! tiles neighbors-table)
+             neighbors-table)))))
+
+;; Create a rectangular arena
+(define (make-rect-arena params)
+  (let ((tiles (gen-rect-arena-tiles params)))
+    (list RECT-ARENA
+          params
+          tiles
+          (gen-rect-arena-neighbors tiles params))))
+
+;; Return true if tile is in the arena
+(define (in-rect-arena? arena tile)
+  (let* ((params (arena-params arena))
+         (rows (get-param params 'rows))
+         (cols (get-param params 'cols)))
+    (and (>= (tile-row tile) 0)
+         (<  (tile-row tile) rows)
+         (>= (tile-col tile) 0)
+         (<  (tile-col tile) cols))))
+
+;; Returns a canvas enclosing the arena
+(define (rect-arena-enclosing-canvas arena)
+  (make-canvas (+ (arena-rows arena) 1)
+               (+ (arena-cols arena) 1)))
+
+
+;;;
+;;;; Genaral arena functions
+;;;
+
+(define arena-type car)
+(define arena-params cadr)
+(define arena-tiles caddr)
+(define arena-neighbors cadddr)
+
+(define (make-arena arena-type params)
+  (case arena-type
+    ((0)
+     (make-rect-arena params))
+    (else
+     (err-msg "make-arena" "Undefined arena type"))))
+
+(define (in-arena? arena tile)
+  (case (arena-type arena)
+    ((0)
+     (in-rect-arena? arena tile))
+    (else
+     (err-msg "in-arena?" "Undefined arena type"))))
+
+(define (arena-rows arena)
+  (get-param (arena-params arena) 'rows))
+
+(define (arena-cols arena)
+  (get-param (arena-params arena) 'cols))
+
+(define (arena-enclosing-canvas arena)
+  (case (arena-type arena)
+    ((0)
+     (rect-arena-enclosing-canvas arena))
+    (else
+     (err-msg "arena-enclosing-canvas" "Undefined arena type"))))
+
+
+;;;
+;;;; Labyrinths
+;;;
+
+(definition public labyrinth-content car)
+(definition public labyrinth-arena   cadr)
+(definition public labyrinth-canvas  caddr)
+
+(definition public (make-labyrinth labyrinth-type params)
+  (let* ((arena (make-arena labyrinth-type params))
+         (tiles (arena-tiles arena))
+         (laby (make-table size: (length tiles))))
+
+    (define (init! tiles)
+      (cond ((not (null? tiles))
+             (table-set! laby (car tiles) AIR)
+             (init! (cdr tiles)))))
+
+    (init! tiles)
+    (list laby arena (arena-enclosing-canvas arena))))
+
+
+(define (labyrinth-ref laby row col)
+  (table-ref (labyrinth-content laby)
+             (make-tile row col)))
+
+(define (labyrinth-set! laby row col val)
+  (table-set! (labyrinth-content laby)
+              (make-tile row col) val))
+
+(define (labyrinth-tile-set! laby tile val)
+  (labyrinth-set! laby
+                  (tile-row tile)
+                  (tile-col tile)
+                  val))
+
+(define (labyrinth-set-air! laby row col)
+  (labyrinth-set! laby
+                  row
+                  col
+                  AIR))
+
+(define (labyrinth-set-wall! laby row col)
+  (labyrinth-set! laby
+                  row
+                  col
+                  WALL))
+
+(define (labyrinth-set-path! laby path)
+  (cond ((not (null? path))
+         (labyrinth-tile-set! laby
+                              (car path)
+                              CANVAS-PATH-CHAR)
+         (labyrinth-set-path! laby
+                              (cdr path)))))
+
+
+(define (pp-labyrinth laby)
+  @w (let* ((rows (labyrinth-rows laby))
+         (cols (labyrinth-cols laby)))
+
+    (define (print-tile row col)
+      (cond ((and (zero? row)
+                  (zero? col))
+             (print (get-tile CANVAS-CORNER))     
+             (print-tile row (+ col 1)))          ; upper-left corner
+            ((and (zero? row)
+                  (= col (- cols 1)))
+             (println (get-tile CANVAS-CORNER))
+             (print-tile (+ row 1) 0))            ; upper-right corner
+            ((zero? row)
+             (print (get-tile CANVAS-HORIZ))
+             (print-tile row (+ col 1)))          ; top border
+            ((and (= row (- rows 1))
+                  (zero? col))
+             (print (get-tile CANVAS-CORNER))
+             (print-tile row (+ col 1)))          ; bottom-left corner
+            ((and (= row (- rows 1))
+                  (= col (- cols 1)))
+             (println (get-tile CANVAS-CORNER)))  ; bottom-right corner
+            ((= row (- rows 1))
+             (print (get-tile CANVAS-HORIZ))
+             (print-tile row (+ col 1)))          ; bottom border
+            ((zero? col)
+             (print (get-tile CANVAS-VERT))
+             (print-tile row (+ col 1)))          ; left border
+            ((= col (- cols 1))
+             (println (get-tile CANVAS-VERT))
+             (print-tile (+ row 1) 0))            ; right border
+            ((in-labyrinth-arena? laby row col)
+             (print (get-tile (labyrinth-ref laby
+                                             (- row 1)
+                                             (- col 1))))
+             (print-tile row (+ col 1)))          ; arena content
+            (else
+             (print (get-tile CANVAS-CHAR))
+             (print-tile row (+ col 1)))))        ; non-arena
+    
+    (println)
+    (print-tile 0 0)))
+
+  ;; (define (pp-rect-labyrinth laby)
+  
+  ;; (let ((type (labyrinth-type laby)))
+  ;;   (case type
+  ;;     ((0)
+  ;;      (pp-rect-labyrinth laby))
+  ;;     (else
+  ;;      (err-msg "pp-labyrinth" "Undefined labyrinth type")))))
+
+(define (labyrinth-rows laby)
+  (canvas-rows (labyrinth-canvas laby)))
+
+(define (labyrinth-cols laby)
+  (canvas-cols (labyrinth-canvas laby)))
+
+(define (labyrinth-type laby)
+  (arena-type (labyrinth-arena laby)))
+
+(define (labyrinth-fill-val! laby val)
+  (let ((rows (labyrinth-rows laby))
+        (cols (labyrinth-cols laby)))
+
+    (define (labyrinth-fill-aux! row col)
+      (if (and (< row rows)
+               (in-labyrinth-arena? laby row col))
+          (cond ((= col cols)
+                 (labyrinth-fill-aux! (+ row 1) 0))
+                (else
+                 (labyrinth-set! laby row col val)
+                 (labyrinth-fill-aux! row (+ col 1))))))
+
+    (labyrinth-fill-aux! 0 0)))
+
+(define (labyrinth-fill! laby)
+  (labyrinth-fill-val! laby WALL))
+
+(define (labyrinth-empty! laby)
+  (labyrinth-fill-val! laby AIR))
+
+(define (in-labyrinth-arena? laby row col)
+  (in-arena? (labyrinth-arena laby) (make-tile (- row 1)
+                                               (- col 1)))) ; account for arena offset in canvas
+
+
+;;;
+;;;; Algos
+;;;
+
+(definition public (gen-tile-random-labyrinth! laby)
+  (let ((rows (labyrinth-rows laby))
+        (cols (labyrinth-cols laby)))
+
+    (define (gen-tile-random-labyrinth-aux! row col)
+      (if (< row rows)
+          (cond ((= col cols)
+                 (gen-tile-random-labyrinth-aux! (+ row 1) 0))
+                (else
+                 (if (head-or-tail)
+                     (labyrinth-set-air! laby row col)
+                     (labyrinth-set-wall! laby row col))
+                 (gen-tile-random-labyrinth-aux! row (+ col 1))))))
+
+    (gen-tile-random-labyrinth-aux! 0 0)))
+
+(define (gen-path-random-labyrinth! laby)
+  (let* ((arena (labyrinth-arena laby))
+         (tiles (arena-tiles arena))
+         (neighbors (arena-neighbors arena)))
+    #f))
+    
+
+
+;;;
+;;;; Utils
+;;;
+
+(define (head-or-tail)
+  (even? (random-integer 2)))
+
+(define (err-msg context msg)
+  (display context)
+  (display " : ")
+  (display msg)
+  (newline))
+
+(define (keep lst predicate)
+  
+  (define (keep-aux lst predicate acc)
+    (if (null? lst)
+        acc
+        (if (predicate (car lst))
+            (keep-aux (cdr lst) predicate (cons (car lst) acc))
+            (keep-aux (cdr lst) predicate acc))))
+
+  (keep-aux lst predicate '()))
+
+(define (get-param params param)
+  (table-ref params param))
+
+(define (non-null? elem)
+  (not (null? elem)))
+
+(define (non-negative? n)
+  (not (negative? n)))
+
+(define (tiles-drow tileA tileB)
+  (let ((rowA (tile-row tileA))
+        (rowB (tile-row tileB)))
+    (abs (- rowB rowA))))
+  
+(define (tiles-dcol tileA tileB)
+  (let ((colA (tile-col tileA))
+        (colB (tile-col tileB)))
+    (abs (- colB colA))))
+
+;; Returns the square of the cartesian distance btn tileA and tileB
+(define (dist^2 tileA tileB)
+  (let* ((drow (tiles-drow tileA tileB))
+         (dcol (tiles-dcol tileA tileB)))
+    (+ (* drow drow) (* dcol dcol))))
+
+;; Returns a randomly chosen element of lst
+(define (pick-from-list lst)
+  (list-ref lst
+            (random-integer (length lst))))
+
+
+)

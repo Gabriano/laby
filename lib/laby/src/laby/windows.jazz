@@ -1,0 +1,26 @@
+;;;=========
+;;;  Laby
+;;;=========
+;;;
+;;;; Laby Windows
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.windows jazz
+
+
+(import (jazz.platform)
+        (jazz.ui.window)
+        (world.settings)
+        (laby.window))
+
+
+(specific (window-style (<Laby-Window> window) rest)
+  (if (world-setting 'world.borderless? #f 'default)
+      WS_POPUP
+    (nextmethod window rest))))

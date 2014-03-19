@@ -1,0 +1,381 @@
+;;;=========
+;;;  Laby
+;;;=========
+;;;
+;;;; Laby Client
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.client jazz
+
+
+(import (jazz.catalog)
+        (jazz.debuggee)
+        (jazz.debugger)
+        (jazz.debugger.jazz.stub)
+        (jazz.editor.lisp)
+        (jazz.graphic.opengl.window)
+        (jazz.ide)
+        (jazz.io)
+        (jazz.jml)
+        (jazz.jrm)
+        (jazz.library)
+        (jazz.system)
+        (jazz.ui)
+        (world)
+        (world.autoload)
+        (world.client)
+        (world.client.actions)
+        (world.client.bars)
+        (world.interface.actions)
+        (world.interface.bars)
+        (world.role)
+        (world.settings)
+        (world.syntax (phase syntax))
+        (laby.debugger)
+        (laby.window)
+        (laby.generate))
+
+
+(class Laby-Client extends World-Client
+  
+  
+  (slot laby-settings initialize #f getter generate)
+
+  
+  (method override (process-name)
+    "Laby")
+  
+  
+  (method override (new-toplevel)
+    (let ((fullscreen? (xor (world-setting 'world.fullscreen? (not (get-controller-debugger)) 'default) (shift-down?)))
+          (pos (find-setting 'world.position {Point 50 50}))
+          (size (find-setting 'world.size {Dimension 1200 800})))
+      (new-opengl-window class: Laby-Window fullscreen?: fullscreen? position: pos size: size render?: #f visible?: #f)))
+  
+  
+  (method override (settings-root)
+    {Directory Home ".laby"})
+  
+  
+  (method override (settings-alias)
+    'App)
+  
+  
+  (method override (initialize-app)
+    (register-alias 'App
+                    (list (if (is-alias? 'Laby)
+                              'Laby
+                            'Build))))
+  
+  
+  (method override (initialize-settings)
+    (nextmethod)
+    (register-alias 'Root (get-list~ (get-parent~ (get-parent~ {Directory App}))))
+    (register-alias 'Laby-World '(Root "worlds" "laby"))
+    (set! laby-settings (new File-Settings))
+    (register-settings laby-settings)
+    (set-setting~ laby-settings 'world.world-directories '(("laby" . {Directory Laby-World})))
+    (set-setting~ laby-settings 'world.worlds-directories #f))
+  
+  
+  (method override (default-preferences)
+    (new Laby-Preferences))
+  
+  
+  (method override (default-bindings)
+    (new Laby-Bindings))
+  
+  
+  (method override (use-profile?)
+    #f)
+
+  
+  ;;;
+  ;;;; Actions
+  ;;;
+  
+  
+  (method override (class-actions)
+    (append (list (find-actions 'laby))
+            (nextmethod)))
+  
+  
+  ;;;
+  ;;;; Files
+  ;;;
+  
+  
+  (method override (news-file)
+    (world-file '("devel" "laby" "News.ftx") 'App))
+  
+  
+  (method override (roadmap-file)
+    (world-file '("devel" "laby" "Roadmap.ftx") 'App))
+  
+  
+  (method override (help-file)
+    (world-file '("devel" "laby" "Help.ftx") 'App))
+  
+  
+  ;;;
+  ;;;; Interface
+  ;;;
+  
+  
+  (method override (setup-application-interface)
+    (install-bars
+      `((,World-Main-Bar      main      horizontal (center -10))
+        (,World-Game-Bar      game      horizontal (center -36))
+        (,World-Window-Bar    window    horizontal (-10 -10))
+        (,World-Camera-Bar    camera    horizontal (-10 -36))
+        (,World-Debug-Bar     debug     horizontal (10 -10))
+        (,World-History-Bar   history   horizontal (10 -36))
+        (,World-Models-Bar    models    horizontal (10 -24.) #f)
+        (,World-Target-Bar    target    horizontal (-10 10))
+        (,World-Edition-Bar   edition   vertical   (-36 center))
+        (,World-Interface-Bar interface vertical   (-10 center))
+        (,World-Tutorial-Bar  tutorial  horizontal (10 10) #f)
+        (,World-Objective-Bar objective horizontal (114 10) #f)
+        (,World-Collision-Bar collision horizontal (-10 36) #f)
+        (,World-Minecraft-Bar minecraft vertical   (-10 -98) #f))))
+
+
+  ;;;
+  ;;;; Roles
+  ;;;
+
+
+  (method public (user-role?)
+    (eq? current-role 'user))
+
+
+  (method public (programmer-role?)
+    (eq? current-role 'programmer))
+
+
+  (define-trait user-bindings Bindings
+    (<Role-Trait>
+      (<install>
+        (<world-menu!>
+          (<!>           name: view-help              visible?: #f))
+        (<world-world!>
+          (<!>           name: world-new              visible?: #f)
+          (<!>           name: world-open             visible?: #f)
+          (<!>           name: world-save             visible?: #f)
+          (<!>           name: world-save-as          visible?: #f)
+          (<!>           name: world-revert           visible?: #f))
+        (<world-server!>
+          (<!>           name: connect-to-server      visible?: #f)
+          (<!>           name: disconnect-from-server visible?: #f)
+          (<!>           name: request-server-update  visible?: #f))
+        (<world-camera!>
+          (<!>           name: toggle-camera-lock     visible?: #f))
+        (<world-graphics!>
+          (<!>           name: toggle-lighting        visible?: #f)
+          (<!>           name: toggle-gadgets         visible?: #f))
+        (<world-edition!>
+          (<!>           name: textures-showcase      visible?: #f)
+          (<!>           name: import-model           visible?: #f)
+          (<!>           name: reload-textures        visible?: #f))
+        (<world-history!>
+          (<!>           name: step-logic             visible?: #f)
+          (<!>           name: rewind-logic           visible?: #f)
+          (<!>           name: toggle-history         visible?: #f)
+          (<!>           name: reset-history          visible?: #f)
+          (<!>           name: toggle-evaluate-future visible?: #f))
+        (<world-window!>
+          (<!>           name: live-gaia/world        visible?: #f)
+          (<!>           name: design-gaia/world      visible?: #f)
+          (<!>           name: restore-gaia/world     visible?: #f))
+        (<world-tutorial!>)
+        (<world-debug!>
+          (<!>           name: toggle-target          visible?: #f)
+          (<!>           name: toggle-script          visible?: #f)
+          (<!>           name: toggle-debug-sectors   visible?: #f)
+          (<!>           name: toggle-debug-areas     visible?: #f)
+          (<!>           name: toggle-draw-atlas      visible?: #f)
+          (<!>           name: toggle-draw-me         visible?: #f)
+          (<!>           name: toggle-gc-sound        visible?: #f)
+          (<!>           name: reset-marks            visible?: #f)
+          (<!>           name: clear-console          visible?: #f)
+          (<!>           name: clear-terminal         visible?: #f)
+          (<!>           name: garbage-collect        visible?: #f)
+          (<!>           name: explore-interface      visible?: #f)
+          (<!>           name: test1                  visible?: #f)
+          (<!>           name: test2                  visible?: #f)
+          (<!>           name: test3                  visible?: #f)
+          (<!>           name: test4                  visible?: #f)
+          (<!>           name: test5                  visible?: #f)
+          (<!>           name: test6                  visible?: #f)
+          (<!>           name: test7                  visible?: #f)
+          (<!>           name: test8                  visible?: #f)
+          (<!>           name: test9                  visible?: #f)
+          (<!>           name: test0                  visible?: #f)))))
+  
+  (define-trait user-main World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: world-new              visible?: #f)
+        (<!>             name: world-open             visible?: #f)
+        (<!>             name: world-save             visible?: #f)
+        (<!>             name: world-revert           visible?: #f))))
+  
+  (define-trait user-interface World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: toggle-lighting        visible?: #f)
+        (<!>             name: toggle-gadgets         visible?: #f))))
+
+  (define-trait user-camera World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: toggle-camera-lock     visible?: #f))))
+
+  (define-trait user-edition World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: textures-showcase      visible?: #f))))
+
+  (define-trait user-models World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: import-model           visible?: #f))))
+
+  (define-trait user-history World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: step-logic             visible?: #f)
+        (<!>             name: rewind-logic           visible?: #f)
+        (<!>             name: toggle-history         visible?: #f)
+        (<!>             name: reset-history          visible?: #f)
+        (<!>             name: toggle-evaluate-future visible?: #f))))
+  
+  (define-trait user-window World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: live-gaia/world        visible?: #f)
+        (<!>             name: design-gaia/world      visible?: #f)
+        (<!>             name: restore-gaia/world     visible?: #f))))
+  
+  (define-trait user-tutorial World-Actionbar
+    (<Role-Trait>
+      (<install>)))
+  
+  (define-trait user-objective World-Actionbar
+    (<Role-Trait>
+      (<install>)))
+  
+  (define-trait user-debug World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!>             name: toggle-target          visible?: #f)
+        (<!>             name: toggle-script          visible?: #f)
+        (<!>             name: toggle-debug-sectors   visible?: #f)
+        (<!>             name: toggle-debug-areas     visible?: #f)
+        (<!>             name: toggle-draw-atlas      visible?: #f)
+        (<!>             name: toggle-draw-me         visible?: #f)
+        (<!>             name: reset-marks            visible?: #f)
+        (<!>             name: clear-terminal         visible?: #f)
+        (<!>             name: garbage-collect        visible?: #f)
+        (<!>             name: explore-interface      visible?: #f))))
+
+  (definition user-role
+    `((:bindings ,user-bindings)
+      (main ,user-main)
+      (interface ,user-interface)
+      (camera ,user-camera)
+      (edition ,user-edition)
+      (models ,user-models)
+      (history ,user-history)
+      (window ,user-window)
+      (tutorial ,user-tutorial)
+      (objective ,user-objective)
+      (debug ,user-debug)))
+
+
+  (define-trait programmer-bindings Bindings
+    (<Role-Trait>
+      (<install>)))
+  
+  (define-trait programmer-main World-Actionbar
+    (<Role-Trait>
+      (<install>
+        (<!> name: world-new    visible?: #f)
+        (<!> name: world-open   visible?: #f)
+        (<!> name: world-save   visible?: #f)
+        (<!> name: world-revert visible?: #f))))
+
+  (definition programmer-role
+    `((:bindings ,programmer-bindings)
+      (main ,programmer-main)))
+  
+  
+  (method override (role-traits role)
+    (case role
+      ((user) user-role)
+      ((programmer) programmer-role)
+      (else (nextmethod role)))))
+
+
+;;;
+;;;; Preferences
+;;;
+
+
+(class Laby-Preferences extends IDE-Preferences
+  
+  
+  (form
+    (<install> toplevel-state: restored toolbar-classes: ((:menubar . {Reference World-Menubar}) (:toolbar . {Reference World-Toolbar}) (:status . {Reference World-Status})))))
+
+
+;;;
+;;;; Bindings
+;;;
+
+
+(class Laby-Bindings extends IDE-Bindings
+  
+  
+  (form
+    (<install>
+      (<World-Menu-Actions>      name: world-menu)
+      (<World-Interface-Actions> name: world-interface)
+      (<World-Graphics-Actions>  name: world-graphics)
+      (<World-Sound-Actions>     name: world-sound)
+      (<World-Server-Actions>    name: world-server)
+      (<World-World-Actions>     name: world-world)
+      (<World-Zone-Actions>      name: world-zone)
+      (<World-Movement-Actions>  name: world-movement)
+      (<World-Camera-Actions>    name: world-camera)
+      (<World-Game-Actions>      name: world-game)
+      (<World-Spell-Actions>     name: world-spell)
+      (<World-Edition-Actions>   name: world-edition)
+      (<World-History-Actions>   name: world-history)
+      (<World-Window-Actions>    name: world-window)
+      (<World-Debug-Actions>     name: world-debug)
+      (<World-Tutorial-Actions>  name: world-tutorial)
+      (<World-Objective-Actions> name: world-objective)
+      (<World-Collision-Actions> name: world-collision)
+      (<World-Minecraft-Actions> name: world-minecraft)
+      (<World-Anonymous-Actions> name: world-anonymous)
+      (<Laby-Actions>           name: laby))))
+
+
+;;;
+;;;; Actions
+;;;
+
+
+(class Laby-Actions extends World-Actions
+  
+  
+  (form
+    (<install>                             title: "Laby"
+      (<Action-Item> name: teleport-player title: "Teleport Player" action-handler: {Event-Handler :application on-teleport-player} shortcut: {Shortcut :alt #\P})))))

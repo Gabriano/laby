@@ -1,0 +1,65 @@
+;;;=========
+;;;  Laby
+;;;=========
+;;;
+;;;; Laby Start
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.start jazz
+
+
+(import (jazz.graphic.opengl.glew)
+        (jazz.graphic.opengl.window)
+        (jazz.platform)
+        (world)
+        (world.boot)
+        (world.colors)
+        (world.fonts)
+        (laby.client)
+        (laby.run)
+        (laby.windows (cond windows)))
+
+
+(definition (start-laby)
+  (define (check-extension ext)
+    (format "{a} {a} supported"
+            ext
+            (if (glewIsSupported ext)
+                "is"
+              "not")))
+  
+  (cond ((command-argument "glversion")
+         (new-opengl-window visible?: #f)
+         (system-message (format "OpenGL {a}" (glGetString GL_VERSION))))
+        ((command-argument "glextension")
+         => (lambda (arg)
+              (new-opengl-window visible?: #f)
+              (system-message (format "OpenGL extension {a}" (check-extension arg)))))
+        ((command-argument "glinformation")
+         (new-opengl-window visible?: #f)
+         (system-message (string-append (format "OpenGL {a}{%}{%}" (glGetString GL_VERSION))
+                                        (check-extension "GL_EXT_texture_array") (format "{%}")
+                                        (check-extension "GL_EXT_framebuffer_object") (format "{%}")
+                                        (check-extension "GL_EXT_framebuffer_blit") (format "{%}")
+                                        (check-extension "GL_EXT_framebuffer_multisample") (format "{%}")
+                                        (check-extension "GL_ARB_multisample") (format "{%}")
+                                        (check-extension "GL_ARB_debug_output") (format "{%}{%}")
+                                        (format "GL_MAX_LIGHTS: {a}{%}" (glGetInteger* GL_MAX_LIGHTS))
+                                        (format "GL_MAX_TEXTURE_SIZE: {a}{%}" (glGetInteger* GL_MAX_TEXTURE_SIZE))
+                                        (format "GL_MAX_3D_TEXTURE_SIZE: {a}{%}" (glGetInteger* GL_MAX_3D_TEXTURE_SIZE))
+                                        (format "GL_MAX_TEXTURE_IMAGE_UNITS: {a}{%}" (glGetInteger* GL_MAX_TEXTURE_IMAGE_UNITS))
+                                        (format "GL_MAX_VERTEX_UNIFORM_COMPONENTS: {a}{%}" (glGetInteger* GL_MAX_VERTEX_UNIFORM_COMPONENTS))
+                                        (format "GL_MAX_FRAGMENT_UNIFORM_COMPONENTS: {a}{%}" (glGetInteger* GL_MAX_FRAGMENT_UNIFORM_COMPONENTS)))))
+        (else
+         (load-point 'start)
+         (set-min-heap! (* 500000 1024))
+         (boot-client Laby-Client "laby" #f))))
+
+
+(set-laby-start start-laby))

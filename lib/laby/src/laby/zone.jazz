@@ -1,0 +1,68 @@
+;;;=========
+;;;  Laby
+;;;=========
+;;;
+;;;; Laby Zone
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.zone jazz
+
+
+(import (jazz.graphic.opengl.glew)
+        (jazz.jml)
+        (jazz.system)
+        (world)
+        (world.atlas)
+        (world.autoload)
+        (world.block)
+        (world.geometry)
+        (world.planet)
+        (world.skybox)
+        (world.syntax (phase syntax))
+        (world.zone)
+        (laby.biome)
+        (laby.generate))
+
+
+(class Laby-Zone extends Zone
+  
+  
+  ;;;
+  ;;;; Populate
+  ;;;
+  
+  
+  (method override (populate-zone)
+    (define (make-configuration)
+      (let ((p (make-table)))
+        (table-set! p 'rows 10)
+        (table-set! p 'cols 20)
+        p))
+    
+    (let ((laby (make-labyrinth RECT-LABYRINTH (make-configuration))))
+      (gen-tile-random-labyrinth! laby)
+      (iterate-table (labyrinth-content laby)
+        (lambda (tile val)
+          (unless (eqv? val AIR)
+            (let ((row (tile-row tile))
+                  (col (tile-col tile)))
+              (let ((model (find-model~ (current-world) 'Fire))
+                    (pos (vertex (+ row .5) .5 (+ col .5))))
+                (let ((block (new Block model: model position: pos)))
+                  (add-element~ (current-zone) block)
+                  (add-child~ (get-designer~ (current-zone)) block (current-zone) import: '(world.data) properties: (list position: pos))))))))))
+  
+  
+  ;;;
+  ;;;; Edition
+  ;;;
+  
+  
+  (method override (zone-editable?)
+    #f)))

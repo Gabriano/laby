@@ -1,0 +1,21 @@
+;;;=========
+;;;  Laby
+;;;=========
+;;;
+;;;; Laby Window
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.window jazz
+
+
+(import (world.syntax (phase syntax))
+        (world.window))
+
+
+(class Laby-Window extends World-Window))

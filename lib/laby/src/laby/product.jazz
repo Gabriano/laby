@@ -1,0 +1,74 @@
+;;;=========
+;;;  Yownu
+;;;=========
+;;;
+;;;; Laby Product
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 2012-2014
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+
+
+(module laby.product jazz
+
+
+(import (jazz.io)
+        (world.settings))
+
+
+;;;
+;;;; Build
+;;;
+
+
+(definition (build descriptor (unit: unit #f) (force?: force? #f))
+  (define (copy-info)
+    (install-file '("README") 'Laby)
+    (install-file '("devel" "laby" "Help.ftx") 'Laby)
+    (install-file '("devel" "laby" "News.ftx") 'Laby)
+    (install-file '("devel" "laby" "Roadmap.ftx") 'Laby))
+  
+  (define (copy-assets)
+    (let ((path '("lib" "world.client" "assets")))
+      (let ((src (world-directory path 'World))
+            (dst (world-directory path 'Build)))
+        (install-directory "assets" src dst))))
+  
+  (define (copy-templates)
+    (let ((src (world-templates-directory 'Laby))
+          (dst (world-templates-directory 'Build)))
+      (install-directory "templates" src dst)))
+  
+  (define (install-file path (alias #f) (name #f))
+    (let ((src (world-file path alias))
+          (dst (world-file path 'Build)))
+      (unless (and (exists?~ dst)
+                   (equal? (digest-file (parse~ src) 'SHA-1) (digest-file (parse~ dst) 'SHA-1)))
+        (build-feedback "; copying {a}..." (or name (last path)))
+        (create-directories~ dst)
+        (copy-file~ src dst))))
+  
+  (define (install-directory name src dst)
+    (unless (and (exists?~ dst)
+                 (equal? (digest-directory src 'SHA-1) (digest-directory dst 'SHA-1)))
+      ;; should only copy changes with feedback accordingly
+      (build-feedback "; copying {a}..." name)
+      (create-directories~ dst)
+      (copy-directory~ src dst)))
+  
+  (initialize-aliases)
+  (copy-info)
+  (copy-assets)
+  (copy-templates)
+  (build-product-descriptor descriptor unit: unit force?: force?))
+
+
+;;;
+;;;; Register
+;;;
+
+
+(register-product 'laby
+  build: build))
