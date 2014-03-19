@@ -1,0 +1,23 @@
+{Formatted-Text
+ formats:
+ ({Format Base}
+  {Format Base left-margin: 16 bulleted?: #t}
+  {Format Heading1}
+  {Format Base left-margin: 48 bulleted?: #t}
+  {Format Heading2}
+  {Format Base left-margin: 0 bulleted?: #f}
+  {Format Heading2 left-margin: 16 bulleted?: #t}
+  {Format Heading2 left-margin: 48 bulleted?: #t}
+  {Format Heading2 left-margin: 80 bulleted?: #t}
+  {Format Heading2 left-margin: 0 bulleted?: #f}
+  {Format Heading2 left-margin: -16 bulleted?: #t}
+  {Format Heading2 left-margin: -32 bulleted?: #f})
+
+ styles:
+ ({Text-Style Base}
+  {Text-Style Heading1}
+  {Text-Style Heading2})
+
+ paragraphs:
+ ((2 ("Todo" 1))
+  (5))}
