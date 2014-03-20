@@ -1,29 +1,26 @@
-(package yownu
+(package laby
   
   (root "src")
-  (products (yownu (title "Yownu")
-                   (run yownu.run)
-                   (unit yownu.product)
-                   (build (yownu executable: "Yownu" minimum-heap: 500000 resources: "resources"))
-                   (update yownu.biome
-                           yownu.client
-                           yownu.debugger
-                           yownu.generate
-                           yownu.laby
-                           yownu.product
-                           yownu.run
-                           yownu.start
-                           yownu.window
-                           yownu.windows
-                           yownu.world
-                           yownu.zone)
-                   (dependencies gambit.ext
-                                 jazz.doc
-                                 jazz.editor.jazz
-                                 jazz.git
-                                 jazz.groupware
-                                 world
-                                 world.client
-                                 world.server))
-            (yownu-script (run yownu.script)))
+  (products (laby (title "Laby")
+                  (run laby.run)
+                  (unit laby.product)
+                  (build (laby executable: "Laby" minimum-heap: 500000 resources: "resources"))
+                  (update laby.client
+                          laby.generate
+                          laby.product
+                          laby.run
+                          laby.start
+                          laby.window
+                          laby.windows
+                          laby.world
+                          laby.zone)
+                  (dependencies gambit.ext
+                                jazz.doc
+                                jazz.editor.jazz
+                                jazz.git
+                                jazz.groupware
+                                world
+                                world.client
+                                world.server))
+            (laby-script (run laby.script)))
   (project ".project"))

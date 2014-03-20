@@ -1,0 +1,18 @@
+;;;==============
+;;;  JazzScheme
+;;;==============
+;;;
+;;;; Project
+;;;
+
+
+(data jazz.ide.data.project
+
+
+(import (jazz.project))
+
+
+(form
+  (<Project> name: laby description-file: {File :context ".repository"} active-project: lib:laby:Laby
+    (<*>                 tag-reference: {File :context "lib" ".project"})
+    (<*>                 tag-reference: {File :context "world" ".project"}))))

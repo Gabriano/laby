@@ -120,7 +120,7 @@
         (world.w3d)
         (world.window)
         (world.zone)
-        (laby.biome)
+        (laby.zone)
         (zlib))
 
 
@@ -129,6 +129,15 @@
 
 
 (class Laby-World extends World
+  
+  
+  ;;;
+  ;;;; Zone
+  ;;;
+  
+  
+  (method override (zone-instantiate)
+    (new-zone model: 'Laby-Zone units: '(world.data laby.zone)))
   
   
   (method override (zone-based?)

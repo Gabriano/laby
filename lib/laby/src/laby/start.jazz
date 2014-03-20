@@ -59,7 +59,7 @@
         (else
          (load-point 'start)
          (set-min-heap! (* 500000 1024))
-         (boot-client Laby-Client "laby" #f))))
+         (boot-client Laby-Client "laby" "default"))))
 
 
 (set-laby-start start-laby))

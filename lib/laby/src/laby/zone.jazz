@@ -26,7 +26,6 @@
         (world.skybox)
         (world.syntax (phase syntax))
         (world.zone)
-        (laby.biome)
         (laby.generate))
 
 
@@ -52,11 +51,12 @@
           (unless (eqv? val AIR)
             (let ((row (tile-row tile))
                   (col (tile-col tile)))
-              (let ((model (find-model~ (current-world) 'Fire))
+              (let ((model (find-model~ (current-world) 'Dirty))
                     (pos (vertex (+ row .5) .5 (+ col .5))))
                 (let ((block (new Block model: model position: pos)))
                   (add-element~ (current-zone) block)
-                  (add-child~ (get-designer~ (current-zone)) block (current-zone) import: '(world.data) properties: (list position: pos))))))))))
+                  (add-child~ (get-designer~ (current-zone)) block (current-zone) import: '(world.data) properties: (list position: pos))))))))
+      (set-modified?~ designer #f)))
   
   
   ;;;
